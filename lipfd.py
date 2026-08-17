@@ -59,12 +59,11 @@ try:
 except ImportError:
     IN_COLAB = False
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
-if IN_COLAB:
-    from google.colab import drive  # type: ignore
-    drive.mount('/content/drive')
-    PROJECT_ROOT = "/content/drive/MyDrive/deepfake_project"
+_raw_root = globals().get("PROJECT_ROOT", None)
+if _raw_root and os.path.exists(str(_raw_root)):
+    PROJECT_ROOT: str = str(_raw_root)
 else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
     PROJECT_ROOT = os.path.join(BASE_DIR, "deepfake_project")
 
 os.makedirs(PROJECT_ROOT, exist_ok=True)

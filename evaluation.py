@@ -36,21 +36,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Dict, Any, Optional
 
 _raw_root = globals().get("PROJECT_ROOT", None)
-if _raw_root:
+if _raw_root and os.path.exists(str(_raw_root)):
     PROJECT_ROOT: str = str(_raw_root)
 else:
-    try:
-        import google.colab  # type: ignore
-        IN_COLAB = True
-    except ImportError:
-        IN_COLAB = False
-
-    if IN_COLAB:
-        from google.colab import drive  # type: ignore
-        drive.mount('/content/drive')
-        PROJECT_ROOT = "/content/drive/MyDrive/deepfake_project"
-    else:
-        PROJECT_ROOT = os.path.abspath("./deepfake_project")
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+    PROJECT_ROOT = os.path.join(BASE_DIR, "deepfake_project")
 
 
 # Ensure required functions are imported or available in globals

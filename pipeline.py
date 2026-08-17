@@ -53,20 +53,12 @@ if _missing:
         f"wraps them, it doesn't redefine anything."
     )
 
-PROJECT_ROOT = globals().get("PROJECT_ROOT", None)
-if not PROJECT_ROOT:
-    try:
-        import google.colab  # type: ignore
-        IN_COLAB = True
-    except ImportError:
-        IN_COLAB = False
-
-    if IN_COLAB:
-        from google.colab import drive  # type: ignore
-        drive.mount('/content/drive')
-        PROJECT_ROOT = "/content/drive/MyDrive/deepfake_project"
-    else:
-        PROJECT_ROOT = os.path.abspath("./deepfake_project")
+_raw_root = globals().get("PROJECT_ROOT", None)
+if _raw_root and os.path.exists(str(_raw_root)):
+    PROJECT_ROOT: str = str(_raw_root)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+    PROJECT_ROOT = os.path.join(BASE_DIR, "deepfake_project")
 
 REPORTS_DIR = Path(PROJECT_ROOT) / "outputs" / "reports"
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
