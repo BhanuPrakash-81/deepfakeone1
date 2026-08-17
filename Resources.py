@@ -45,8 +45,10 @@ print(f"Project root: {PROJECT_ROOT}")
 def install_dependencies():
     pip_packages = [
         "transformers", "accelerate", "open_clip_torch",
-        "yt-dlp", "mediapipe", "opencv-python-headless",
-        "librosa", "soundfile", "huggingface_hub"
+        "opencv-python-headless", "librosa", "soundfile",
+        "huggingface_hub", "scikit-learn", "scikit-image",
+        "imageio", "imageio-ffmpeg", "timm", "pillow",
+        "safetensors", "pyyaml", "requests", "tqdm"
     ]
     if not IN_COLAB:
         pip_packages = ["torch", "torchvision"] + pip_packages
