@@ -92,10 +92,31 @@ def build_test_set() -> List[Dict[str, Any]]:
     test_set = []
 
     if FFPP_DIR and os.path.exists(FFPP_DIR):
-        real = glob.glob(f"{FFPP_DIR}/original_sequences/youtube/c23/videos/*.mp4")
+        real_patterns = [
+            f"{FFPP_DIR}/original_sequences/youtube/c23/videos/*.mp4",
+            f"{FFPP_DIR}/**/original*/**/*.mp4",
+            f"{FFPP_DIR}/**/youtube/**/*.mp4",
+            f"{FFPP_DIR}/real/**/*.mp4",
+        ]
+        real = []
+        for p in real_patterns:
+            real.extend(glob.glob(p, recursive=True))
+        real = list(set(real))
+
+        fake_patterns = [
+            f"{FFPP_DIR}/manipulated_sequences/**/c23/videos/*.mp4",
+            f"{FFPP_DIR}/**/manipulated*/**/*.mp4",
+            f"{FFPP_DIR}/**/Deepfakes/**/*.mp4",
+            f"{FFPP_DIR}/**/Face2Face/**/*.mp4",
+            f"{FFPP_DIR}/**/FaceSwap/**/*.mp4",
+            f"{FFPP_DIR}/**/NeuralTextures/**/*.mp4",
+            f"{FFPP_DIR}/fake/**/*.mp4",
+        ]
         fake = []
-        for method in ["Deepfakes", "Face2Face", "FaceSwap", "NeuralTextures"]:
-            fake += glob.glob(f"{FFPP_DIR}/manipulated_sequences/{method}/c23/videos/*.mp4")
+        for p in fake_patterns:
+            fake.extend(glob.glob(p, recursive=True))
+        fake = [f for f in list(set(fake)) if f not in real and "original" not in f.lower()]
+
         real_s, fake_s = _sample(real, N_REAL_PER_DATASET), _sample(fake, N_FAKE_PER_DATASET)
         print(f"FF++: found {len(real)} real, {len(fake)} fake -> sampled {len(real_s)}/{len(fake_s)}")
         test_set += [{"source": p, "label": 0, "dataset": "FF++"} for p in real_s]
