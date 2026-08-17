@@ -30,13 +30,8 @@ except ImportError:
     print("Running in local environment.")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
-if IN_COLAB:
-    from google.colab import drive  # type: ignore
-    drive.mount('/content/drive')
-    PROJECT_ROOT = "/content/drive/MyDrive/deepfake_project"
-else:
-    # Use a local folder in the project workspace
-    PROJECT_ROOT = os.path.join(BASE_DIR, "deepfake_project")
+PROJECT_ROOT = os.path.join(BASE_DIR, "deepfake_project")
+globals()["PROJECT_ROOT"] = PROJECT_ROOT
 
 os.makedirs(PROJECT_ROOT, exist_ok=True)
 print(f"Project root: {PROJECT_ROOT}")
