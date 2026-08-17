@@ -40,7 +40,7 @@ print(f"Project root: {PROJECT_ROOT}")
 def install_dependencies():
     pip_packages = [
         "transformers", "accelerate", "open_clip_torch",
-        "opencv-python-headless", "librosa", "soundfile",
+        "opencv-python-headless", "mediapipe", "librosa", "soundfile",
         "huggingface_hub", "scikit-learn", "scikit-image",
         "imageio", "imageio-ffmpeg", "timm", "pillow",
         "safetensors", "pyyaml", "requests", "tqdm"

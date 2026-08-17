@@ -1,4 +1,4 @@
-# Transformer Models & HuggingFace Ecosystem
+# Core Deep Learning & Model Frameworks
 transformers
 accelerate
 huggingface-hub
@@ -6,7 +6,8 @@ safetensors
 timm
 open_clip_torch
 
-# Computer Vision & Video Ingestion
+# Computer Vision, Face Detection & Video Processing
+mediapipe
 opencv-python-headless
 pillow
 imageio
