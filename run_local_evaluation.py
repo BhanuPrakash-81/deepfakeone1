@@ -59,4 +59,4 @@ if __name__ == "__main__":
         print("Error: No test samples found. Check CUSTOM_DIR path.")
         sys.exit(1)
     
-    metrics = evaluate_dataset(test_dataset, threshold=0.25)
+    metrics = evaluate_dataset(test_dataset)
