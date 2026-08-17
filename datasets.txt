@@ -1,0 +1,21 @@
+import kagglehub
+
+# Download latest version
+path = kagglehub.dataset_download("sanikatiwarekar/deep-fake-detection-dfd-entire-original-dataset")
+
+print("Path to dataset files:", path)
+
+
+import kagglehub
+
+# Download latest version
+path = kagglehub.dataset_download("xdxd003/ff-c23")
+
+print("Path to dataset files:", path)
+
+import kagglehub
+
+# Download latest version
+path = kagglehub.dataset_download("reubensuju/celeb-df-v2")
+
+print("Path to dataset files:", path)
