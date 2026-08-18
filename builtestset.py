@@ -78,7 +78,24 @@ if not CELEBDF_DIR:
             CELEBDF_DIR = c
             break
 
-DFD_DIR = os.environ.get("DFD_DIR", None)        # e.g. "/content/drive/MyDrive/datasets/DFD"
+def _detect_dfd_dir() -> Optional[str]:
+    env_path = os.environ.get("DFD_DIR")
+    if env_path and os.path.exists(env_path):
+        return env_path
+    
+    candidates = [
+        "C:/Users/chimm/.cache/kagglehub/datasets/sanikatiwarekar/deep-fake-detection-dfd-entire-original-dataset/1",
+        "C:/Users/chimm/Downloads/sanikatiwarekar/deep-fake-detection-dfd-entire-original-dataset",
+        "/kaggle/input/deep-fake-detection-dfd-entire-original-dataset",
+        "/content/DFD",
+        "./DFD",
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return None
+
+DFD_DIR = _detect_dfd_dir()        # e.g. kagglehub dataset location or environment variable
 
 N_REAL_PER_DATASET = 25   # stratified sample size -- keep small for free-tier storage/time
 N_FAKE_PER_DATASET = 25
@@ -205,11 +222,12 @@ def build_test_set() -> List[Dict[str, Any]]:
     random.shuffle(test_set)
     return test_set
 
-# %% Build it and feed straight into evaluation.py's evaluate_dataset()
-TEST_SET_FROM_DATASETS = build_test_set()
-print(f"\nTotal: {len(TEST_SET_FROM_DATASETS)} videos "
-      f"({sum(1 for x in TEST_SET_FROM_DATASETS if x['label']==0)} real, "
-      f"{sum(1 for x in TEST_SET_FROM_DATASETS if x['label']==1)} fake)")
+if __name__ == "__main__":
+    # %% Build it and feed straight into evaluation.py's evaluate_dataset()
+    TEST_SET_FROM_DATASETS = build_test_set()
+    print(f"\nTotal: {len(TEST_SET_FROM_DATASETS)} videos "
+          f"({sum(1 for x in TEST_SET_FROM_DATASETS if x['label']==0)} real, "
+          f"{sum(1 for x in TEST_SET_FROM_DATASETS if x['label']==1)} fake)")
 
 # Then in evaluation.py's Cell 4, either replace TEST_DATASET with this,
 # or run directly:
