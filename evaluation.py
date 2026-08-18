@@ -63,6 +63,12 @@ else:
         traceback.print_exc()
         fuse_predictions = globals().get("fuse_predictions", None)
 
+    try:
+        from videometadataanalysis import get_video_metadata, print_compression_summary  # type: ignore
+    except Exception:
+        get_video_metadata = None
+        print_compression_summary = None
+
 
 # %% CELL 1 — Sanity check required functions are in this session
 _REQUIRED = ["process_video", "fuse_predictions"]
@@ -160,6 +166,20 @@ def evaluate_dataset(
             y_true.append(label)
             y_scores.append(pred_score)
 
+            vm_info = {}
+            if get_video_metadata:
+                target_path = source
+                if not os.path.exists(target_path):
+                    candidate = os.path.join(PROJECT_ROOT, "data", video_id, "source.mp4")
+                    if os.path.exists(candidate):
+                        target_path = candidate
+                vm_info = get_video_metadata(target_path)
+
+            c_ratio = vm_info.get("compression_ratio", 0.0)
+            kbps = vm_info.get("bitrate_kbps", 0.0)
+            ratio_str = f"{c_ratio:.1f}:1" if c_ratio > 0 else "N/A"
+            kbps_str = f"{kbps:.0f} kbps" if kbps > 0 else "N/A"
+
             results.append({
                 "source": source,
                 "video_id": video_id,
@@ -168,8 +188,9 @@ def evaluate_dataset(
                 "predicted_label": pred_label,
                 "verdict": fusion_res["fused_weighted_verdict"],  # was: "verdict" (doesn't exist)
                 "active_branches": fusion_res["branches_used"],   # was: "active_branches" (doesn't exist)
+                "video_metadata": vm_info,
             })
-            print(f" -> Result: Predicted={pred_score:.4f} ({fusion_res['fused_weighted_verdict']}) | Match: {pred_label == label}")
+            print(f" -> Result: Predicted={pred_score:.4f} ({fusion_res['fused_weighted_verdict']}) | Comp. Ratio: {ratio_str} | Bitrate: {kbps_str} | Match: {pred_label == label}")
 
         except Exception as e:
             print(f" -> ERROR processing {source}: {e}")
@@ -235,6 +256,9 @@ def evaluate_dataset(
     print(f" Confusion Matrix        : TP={tp}, FP={fp}, TN={tn}, FN={fn}")
     print(f" Metrics Report Saved To : {output_path}")
     print("=" * 60 + "\n")
+
+    if print_compression_summary and results:
+        print_compression_summary(results)
 
     return metrics
 
