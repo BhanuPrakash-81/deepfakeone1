@@ -174,6 +174,39 @@ def analyze_misclassifications(
     return misclassified
 
 
+def print_compression_summary(enriched_results: List[Dict[str, Any]]) -> None:
+    """
+    Prints a detailed table showing each tested video's source/ID, ground truth label,
+    predicted score, bitrate, compression ratio, and bitrate bucket.
+    """
+    print("\n" + "=" * 95)
+    print("                      PER-VIDEO COMPRESSION RATIO & METADATA REPORT")
+    print("=" * 95)
+    print(f"{'Source / Video ID':<35} {'GT':<6} {'Score':<8} {'Bitrate':<16} {'Comp. Ratio':<15} {'Bucket':<8}")
+    print("-" * 95)
+
+    for item in enriched_results:
+        vid = item.get("video_id") or os.path.basename(item.get("source", "unknown"))
+        vid_short = vid[:33]
+        gt = item.get("ground_truth", item.get("label", -1))
+        gt_str = "FAKE" if gt == 1 else ("REAL" if gt == 0 else "UNK")
+        score = item.get("predicted_score")
+        score_str = f"{score:.4f}" if score is not None else "N/A"
+        
+        vm = item.get("video_metadata", {})
+        kbps = vm.get("bitrate_kbps")
+        kbps_str = f"{kbps:.1f} kbps" if kbps is not None else "N/A"
+        
+        c_ratio = vm.get("compression_ratio")
+        ratio_str = f"{c_ratio:.2f}:1" if (c_ratio is not None and c_ratio > 0) else "N/A"
+        
+        bucket = vm.get("bitrate_bucket", "N/A")
+
+        print(f"{vid_short:<35} {gt_str:<6} {score_str:<8} {kbps_str:<16} {ratio_str:<15} {bucket:<8}")
+
+    print("=" * 95 + "\n")
+
+
 def compute_eer_threshold(y_true: np.ndarray, y_scores: np.ndarray) -> Optional[float]:
     """Same FAR=FRR crossing logic as evaluation.py's compute_eer(), returns just the threshold."""
     if len(np.unique(y_true)) < 2:
