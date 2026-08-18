@@ -181,9 +181,12 @@ def build_test_set() -> List[Dict[str, Any]]:
         real, fake = [], []
         for v in all_vids:
             rel_p = os.path.relpath(v, DFD_DIR).lower().replace("\\", "/")
-            if any(k in rel_p for k in ["manipulated", "deepfakedetection", "fake", "synthesis"]):
+            v_lower = v.lower().replace("\\", "/")
+            
+            # Match fake indicators in relative path or full path
+            if any(k in rel_p for k in ["manipulated", "deepfakedetection", "fake", "synthesis"]) or "manipulated" in v_lower:
                 fake.append(v)
-            elif any(k in rel_p for k in ["original", "actor", "real", "youtube"]):
+            elif any(k in rel_p for k in ["original", "actor", "real", "youtube"]) or any(k in v_lower for k in ["/original", "/actor"]):
                 real.append(v)
             else:
                 fake.append(v)
