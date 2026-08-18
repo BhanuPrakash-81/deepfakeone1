@@ -78,10 +78,10 @@ def infer_label_from_filepath(path: str, base_dir: Optional[str] = None) -> int:
         except Exception:
             rel_p = os.path.basename(path)
     else:
-        parts = os.path.normpath(str(path)).split(os.sep)
-        rel_p = os.sep.join(parts[-3:]) if len(parts) >= 3 else str(path)
+        parts = os.path.normpath(path).split(os.sep)
+        rel_p = os.sep.join(parts[-3:]) if len(parts) >= 3 else path
 
-    p_lower = str(rel_p).lower().replace("\\", "/")
+    p_lower = rel_p.lower().replace("\\", "/")
     fake_keywords = ["fake", "manipulated", "deepfake", "deepfakedetection", "synthesis"]
     real_keywords = ["real", "original", "actor", "youtube"]
 
