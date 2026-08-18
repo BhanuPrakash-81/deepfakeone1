@@ -180,11 +180,11 @@ def build_test_set() -> List[Dict[str, Any]]:
         
         real, fake = [], []
         for v in all_vids:
-            v_lower = v.lower().replace("\\", "/")
-            if any(k in v_lower for k in ["actor", "original", "real", "youtube"]):
-                real.append(v)
-            elif any(k in v_lower for k in ["manipulated", "deepfakedetection", "deepfake", "fake", "synthesis"]):
+            rel_p = os.path.relpath(v, DFD_DIR).lower().replace("\\", "/")
+            if any(k in rel_p for k in ["manipulated", "deepfakedetection", "fake", "synthesis"]):
                 fake.append(v)
+            elif any(k in rel_p for k in ["original", "actor", "real", "youtube"]):
+                real.append(v)
             else:
                 fake.append(v)
 
@@ -204,11 +204,11 @@ def build_test_set() -> List[Dict[str, Any]]:
         ))
         real, fake = [], []
         for v in all_custom:
-            v_lower = v.lower().replace("\\", "/")
-            if any(k in v_lower for k in ["/real/", "_real", "real_", "original", "actor", "youtube"]):
-                real.append(v)
-            elif any(k in v_lower for k in ["/fake/", "_fake", "fake_", "manipulated", "deepfake", "synthesis"]):
+            rel_p = os.path.relpath(v, CUSTOM_DIR).lower().replace("\\", "/")
+            if any(k in rel_p for k in ["fake", "manipulated", "deepfake", "synthesis"]):
                 fake.append(v)
+            elif any(k in rel_p for k in ["real", "original", "actor", "youtube"]):
+                real.append(v)
             else:
                 fake.append(v)
 

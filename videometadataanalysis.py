@@ -17,7 +17,7 @@
 # meaningful threshold (a bucket with 3 videos gives you noise, not a
 # calibrated threshold). Falls back to the global threshold when a
 # bucket is too small, rather than pretending a tiny sample is reliable.
-
+import os
 import numpy as np
 from typing import Dict, Any, List, Optional
 
@@ -67,18 +67,28 @@ def bucket_by_bitrate(enriched: List[Dict[str, Any]], bins_kbps: Optional[List[i
             r["video_metadata"]["bitrate_bucket"] = "high"
     return enriched
 
-def infer_label_from_filepath(path: str) -> int:
+def infer_label_from_filepath(path: str, base_dir: Optional[str] = None) -> int:
     """
     Infers whether a video is Real (0) or Fake (1) using its directory or file path structure.
+    Ignores top-level root folder names.
     """
-    p_lower = str(path).lower().replace("\\", "/")
-    real_keywords = ["/real/", "_real", "real_", "original", "actor", "youtube"]
-    fake_keywords = ["/fake/", "_fake", "fake_", "manipulated", "deepfake", "deepfakedetection", "synthesis"]
+    if base_dir and os.path.exists(base_dir):
+        try:
+            rel_p = os.path.relpath(path, base_dir)
+        except Exception:
+            rel_p = os.path.basename(path)
+    else:
+        parts = os.path.normpath(str(path)).split(os.sep)
+        rel_p = os.sep.join(parts[-3:]) if len(parts) >= 3 else str(path)
 
-    if any(k in p_lower for k in real_keywords):
-        return 0  # Real
-    elif any(k in p_lower for k in fake_keywords):
+    p_lower = str(rel_p).lower().replace("\\", "/")
+    fake_keywords = ["fake", "manipulated", "deepfake", "deepfakedetection", "synthesis"]
+    real_keywords = ["real", "original", "actor", "youtube"]
+
+    if any(k in p_lower for k in fake_keywords):
         return 1  # Fake
+    elif any(k in p_lower for k in real_keywords):
+        return 0  # Real
     return 1  # Default to Fake
 
 def split_real_and_fake(dataset: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
