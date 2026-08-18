@@ -194,20 +194,26 @@ def build_test_set() -> List[Dict[str, Any]]:
         test_set += [{"source": p, "label": 1, "dataset": "DFD"} for p in fake_s]
 
     if CUSTOM_DIR and os.path.exists(CUSTOM_DIR):
-        real = list(set(
-            glob.glob(f"{CUSTOM_DIR}/real/**/*.mp4", recursive=True) +
-            glob.glob(f"{CUSTOM_DIR}/real/**/*.mov", recursive=True) +
-            glob.glob(f"{CUSTOM_DIR}/real/**/*.MOV", recursive=True) +
-            glob.glob(f"{CUSTOM_DIR}/real/**/*.MP4", recursive=True)
+        all_custom = list(set(
+            glob.glob(f"{CUSTOM_DIR}/**/*.mp4", recursive=True) +
+            glob.glob(f"{CUSTOM_DIR}/**/*.mov", recursive=True) +
+            glob.glob(f"{CUSTOM_DIR}/**/*.MOV", recursive=True) +
+            glob.glob(f"{CUSTOM_DIR}/**/*.MP4", recursive=True) +
+            glob.glob(f"{CUSTOM_DIR}/*.mp4") +
+            glob.glob(f"{CUSTOM_DIR}/*.mov")
         ))
-        fake = list(set(
-            glob.glob(f"{CUSTOM_DIR}/fake/**/*.mp4", recursive=True) +
-            glob.glob(f"{CUSTOM_DIR}/fake/**/*.mov", recursive=True) +
-            glob.glob(f"{CUSTOM_DIR}/fake/**/*.MOV", recursive=True) +
-            glob.glob(f"{CUSTOM_DIR}/fake/**/*.MP4", recursive=True)
-        ))
+        real, fake = [], []
+        for v in all_custom:
+            v_lower = v.lower().replace("\\", "/")
+            if any(k in v_lower for k in ["/real/", "_real", "real_", "original", "actor", "youtube"]):
+                real.append(v)
+            elif any(k in v_lower for k in ["/fake/", "_fake", "fake_", "manipulated", "deepfake", "synthesis"]):
+                fake.append(v)
+            else:
+                fake.append(v)
+
         real_s, fake_s = _sample(real, N_REAL_PER_DATASET), _sample(fake, N_FAKE_PER_DATASET)
-        print(f"Custom (archive (2)): found {len(real)} real, {len(fake)} fake -> sampled {len(real_s)}/{len(fake_s)}")
+        print(f"Custom ({os.path.basename(CUSTOM_DIR)}): found {len(real)} real, {len(fake)} fake -> sampled {len(real_s)}/{len(fake_s)}")
         test_set += [{"source": p, "label": 0, "dataset": "Custom"} for p in real_s]
         test_set += [{"source": p, "label": 1, "dataset": "Custom"} for p in fake_s]
 

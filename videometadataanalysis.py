@@ -67,6 +67,38 @@ def bucket_by_bitrate(enriched: List[Dict[str, Any]], bins_kbps: Optional[List[i
             r["video_metadata"]["bitrate_bucket"] = "high"
     return enriched
 
+def infer_label_from_filepath(path: str) -> int:
+    """
+    Infers whether a video is Real (0) or Fake (1) using its directory or file path structure.
+    """
+    p_lower = str(path).lower().replace("\\", "/")
+    real_keywords = ["/real/", "_real", "real_", "original", "actor", "youtube"]
+    fake_keywords = ["/fake/", "_fake", "fake_", "manipulated", "deepfake", "deepfakedetection", "synthesis"]
+
+    if any(k in p_lower for k in real_keywords):
+        return 0  # Real
+    elif any(k in p_lower for k in fake_keywords):
+        return 1  # Fake
+    return 1  # Default to Fake
+
+def split_real_and_fake(dataset: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Divides a combined dataset into separate 'real' and 'fake' lists using ground_truth, label, or file path.
+    """
+    real_items, fake_items = [], []
+    for item in dataset:
+        path = item.get("source") or item.get("video_path") or item.get("filepath") or ""
+        label = item.get("ground_truth", item.get("label"))
+        if label is None and path:
+            label = infer_label_from_filepath(path)
+        
+        if label == 0:
+            real_items.append(item)
+        else:
+            fake_items.append(item)
+
+    return {"real": real_items, "fake": fake_items}
+
 def calibrate_thresholds_per_bucket(
     enriched: List[Dict[str, Any]],
     bucket_key: str = "bitrate_bucket",
@@ -90,7 +122,15 @@ def calibrate_thresholds_per_bucket(
             print(f"{str(val):<15}{n:<6}{global_threshold:<12.3f}fallback (n<{MIN_SAMPLES_PER_BUCKET})")
             continue
 
-        y_true = np.array([r["ground_truth"] for r in items])
+        y_true_list = []
+        for r in items:
+            g = r.get("ground_truth", r.get("label"))
+            if g is None:
+                path = r.get("source") or r.get("video_path") or ""
+                g = infer_label_from_filepath(path)
+            y_true_list.append(g)
+
+        y_true = np.array(y_true_list)
         y_scores = np.array([r["predicted_score"] for r in items])
         thresh = compute_eer_threshold(y_true, y_scores)
 
