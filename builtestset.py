@@ -222,9 +222,10 @@ def build_test_set() -> List[Dict[str, Any]]:
     random.shuffle(test_set)
     return test_set
 
+# %% Build dataset list for export
+TEST_SET_FROM_DATASETS = build_test_set()
+
 if __name__ == "__main__":
-    # %% Build it and feed straight into evaluation.py's evaluate_dataset()
-    TEST_SET_FROM_DATASETS = build_test_set()
     print(f"\nTotal: {len(TEST_SET_FROM_DATASETS)} videos "
           f"({sum(1 for x in TEST_SET_FROM_DATASETS if x['label']==0)} real, "
           f"{sum(1 for x in TEST_SET_FROM_DATASETS if x['label']==1)} fake)")

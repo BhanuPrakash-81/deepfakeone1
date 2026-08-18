@@ -44,10 +44,9 @@ globals()["fuse_predictions"] = fuse_predictions
 
 # 6. Build Dataset from archive (2)
 print("Loading Component 7/8: dataset builder & evaluation...")
-import builtestset
-from builtestset import build_test_set, CUSTOM_DIR
+from builtestset import TEST_SET_FROM_DATASETS, CUSTOM_DIR
 
-test_dataset = build_test_set()
+test_dataset = TEST_SET_FROM_DATASETS
 print(f"\nBuilt dataset with {len(test_dataset)} videos from {CUSTOM_DIR}.\n")
 
 # 7. Evaluation
