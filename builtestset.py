@@ -77,22 +77,34 @@ if not CELEBDF_DIR:
         if os.path.exists(c):
             CELEBDF_DIR = c
             break
-
 def _detect_dfd_dir() -> Optional[str]:
     env_path = os.environ.get("DFD_DIR")
     if env_path and os.path.exists(env_path):
         return env_path
     
+    user_home = os.path.expanduser("~")
     candidates = [
+        os.path.join(user_home, ".cache/kagglehub/datasets/sanikatiwarekar/deep-fake-detection-dfd-entire-original-dataset/1"),
+        os.path.join(user_home, "Downloads/sanikatiwarekar/deep-fake-detection-dfd-entire-original-dataset"),
         "C:/Users/chimm/.cache/kagglehub/datasets/sanikatiwarekar/deep-fake-detection-dfd-entire-original-dataset/1",
-        "C:/Users/chimm/Downloads/sanikatiwarekar/deep-fake-detection-dfd-entire-original-dataset",
         "/kaggle/input/deep-fake-detection-dfd-entire-original-dataset",
         "/content/DFD",
+        "/content/deep-fake-detection-dfd-entire-original-dataset",
         "./DFD",
     ]
     for c in candidates:
         if os.path.exists(c):
             return c
+
+    # Try kagglehub auto-resolution if available
+    try:
+        import kagglehub
+        path = kagglehub.dataset_download("sanikatiwarekar/deep-fake-detection-dfd-entire-original-dataset")
+        if path and os.path.exists(path):
+            return path
+    except Exception:
+        pass
+
     return None
 
 DFD_DIR = _detect_dfd_dir()        # e.g. kagglehub dataset location or environment variable
@@ -146,10 +158,7 @@ def build_test_set() -> List[Dict[str, Any]]:
             glob.glob(f"{CELEBDF_DIR}/real/*.mp4")
         ))
         
-        # Scandir Celeb-synthesis recursively to capture all Celeb-DF v1 / v2 / v3 / ++ subcategories:
-        # FaceSwap (BlendFace, GHOST, HifiFace, InSwapper, MobileFaceSwap, SimSwap, UniFace),
-        # FaceReenact (DaGAN, FSRT, HyperReenact, LIA, LivePortrait, MCNET, TPSMM),
-        # TalkingFace (AniTalker, EchoMimic, EDTalk, FLOAT, IP_LAP, Real3DPortrait, SadTalker)
+        # Scandir Celeb-synthesis recursively to capture all Celeb-DF v1 / v2 / v3 / ++ subcategories
         fake = list(set(
             glob.glob(f"{CELEBDF_DIR}/Celeb-synthesis/**/*.mp4", recursive=True) +
             glob.glob(f"{CELEBDF_DIR}/Celeb-synthesis/*.mp4") +
@@ -162,34 +171,22 @@ def build_test_set() -> List[Dict[str, Any]]:
         test_set += [{"source": p, "label": 1, "dataset": "Celeb-DF"} for p in fake_s]
 
     if DFD_DIR and os.path.exists(DFD_DIR):
-        real_patterns = [
-            f"{DFD_DIR}/DFD_original_sequences/**/*.mp4",
-            f"{DFD_DIR}/DFD_original_sequences/**/*.mov",
-            f"{DFD_DIR}/DFD_original_sequences/*.mp4",
-            f"{DFD_DIR}/original_sequences/actors/**/*.mp4",
-            f"{DFD_DIR}/original_sequences/actors/**/*.mov",
-            f"{DFD_DIR}/original_sequences/actors/**/*.MOV",
-            f"{DFD_DIR}/real/**/*.mp4",
-            f"{DFD_DIR}/real/**/*.mov",
-        ]
-        real = []
-        for p in real_patterns:
-            real.extend(glob.glob(p, recursive=True))
-        real = list(set(real))
-
-        fake_patterns = [
-            f"{DFD_DIR}/DFD_manipulated_sequences/**/*.mp4",
-            f"{DFD_DIR}/DFD_manipulated_sequences/**/*.mov",
-            f"{DFD_DIR}/DFD_manipulated_sequences/DFD_manipulated_sequences/*.mp4",
-            f"{DFD_DIR}/manipulated_sequences/*[dD]eep[fF]ake*[dD]etection*/**/*.mp4",
-            f"{DFD_DIR}/manipulated_sequences/*[dD]eep[fF]ake*[dD]etection*/**/*.mov",
-            f"{DFD_DIR}/fake/**/*.mp4",
-            f"{DFD_DIR}/fake/**/*.mov",
-        ]
-        fake = []
-        for p in fake_patterns:
-            fake.extend(glob.glob(p, recursive=True))
-        fake = [f for f in list(set(fake)) if f not in real and "original_sequences" not in f]
+        all_vids = list(set(
+            glob.glob(f"{DFD_DIR}/**/*.mp4", recursive=True) +
+            glob.glob(f"{DFD_DIR}/**/*.mov", recursive=True) +
+            glob.glob(f"{DFD_DIR}/**/*.MOV", recursive=True) +
+            glob.glob(f"{DFD_DIR}/**/*.MP4", recursive=True)
+        ))
+        
+        real, fake = [], []
+        for v in all_vids:
+            v_lower = v.lower().replace("\\", "/")
+            if any(k in v_lower for k in ["actor", "original", "real", "youtube"]):
+                real.append(v)
+            elif any(k in v_lower for k in ["manipulated", "deepfakedetection", "deepfake", "fake", "synthesis"]):
+                fake.append(v)
+            else:
+                fake.append(v)
 
         real_s, fake_s = _sample(real, N_REAL_PER_DATASET), _sample(fake, N_FAKE_PER_DATASET)
         print(f"DFD: found {len(real)} real, {len(fake)} fake -> sampled {len(real_s)}/{len(fake_s)}")
