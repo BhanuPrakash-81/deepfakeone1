@@ -18,10 +18,161 @@
 # calibrated threshold). Falls back to the global threshold when a
 # bucket is too small, rather than pretending a tiny sample is reliable.
 import os
+import json
+import subprocess
+import shutil
+import cv2
 import numpy as np
 from typing import Dict, Any, List, Optional
 
 MIN_SAMPLES_PER_BUCKET = 15  # below this, don't trust a bucket-specific threshold
+
+def get_video_metadata(video_path: str) -> Dict[str, Any]:
+    """
+    Extracts video metadata including resolution, duration, bitrate, 
+    uncompressed size estimate, and exact compression ratio (Uncompressed Size : Compressed Size).
+    """
+    if not os.path.exists(video_path):
+        return {"error": f"File not found: {video_path}"}
+
+    file_size_bytes = os.path.getsize(video_path)
+    width, height, fps, total_frames, duration_sec = 0, 0, 0.0, 0, 0.0
+
+    # Try extracting precise metadata via ffprobe if installed
+    if shutil.which("ffprobe"):
+        try:
+            cmd = [
+                "ffprobe", "-v", "quiet", "-print_format", "json",
+                "-show_format", "-show_streams", video_path
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0:
+                data = json.loads(res.stdout)
+                for stream in data.get("streams", []):
+                    if stream.get("codec_type") == "video":
+                        width = int(stream.get("width", 0))
+                        height = int(stream.get("height", 0))
+                        total_frames = int(stream.get("nb_frames", 0))
+                        r_fps = stream.get("r_frame_rate", "0/1")
+                        if "/" in r_fps:
+                            num, den = map(float, r_fps.split("/"))
+                            fps = num / den if den > 0 else 0.0
+                        break
+                format_info = data.get("format", {})
+                duration_sec = float(format_info.get("duration", 0.0))
+        except Exception:
+            pass
+
+    # OpenCV fallback if ffprobe didn't get resolution/frames
+    if width == 0 or total_frames == 0:
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if cap.isOpened():
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                fps = float(cap.get(cv2.CAP_PROP_FPS))
+                cap.release()
+                if fps > 0 and total_frames > 0:
+                    duration_sec = total_frames / fps
+        except Exception:
+            pass
+
+    if duration_sec == 0.0 and fps > 0 and total_frames > 0:
+        duration_sec = total_frames / fps
+
+    bitrate_bps = int((file_size_bytes * 8) / duration_sec) if duration_sec > 0 else 0
+    bitrate_kbps = round(bitrate_bps / 1000.0, 2)
+
+    # Estimate uncompressed YUV420 video frame payload (1.5 bytes per pixel * total frames)
+    uncompressed_bytes = int(width * height * 1.5 * total_frames) if (width > 0 and height > 0 and total_frames > 0) else 0
+    compression_ratio = round(uncompressed_bytes / file_size_bytes, 2) if (file_size_bytes > 0 and uncompressed_bytes > 0) else 0.0
+
+    return {
+        "file_size_bytes": file_size_bytes,
+        "width": width,
+        "height": height,
+        "fps": round(fps, 2),
+        "total_frames": total_frames,
+        "duration_sec": round(duration_sec, 2),
+        "bitrate_bps": bitrate_bps,
+        "bitrate_kbps": bitrate_kbps,
+        "uncompressed_bytes": uncompressed_bytes,
+        "compression_ratio": compression_ratio,  # e.g. 50.2 means 50.2:1 compression ratio
+    }
+
+def enrich_results_with_metadata(
+    results: List[Dict[str, Any]], 
+    project_root: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """
+    Enriches per-sample evaluation results with video metadata, including bitrate and compression ratio.
+    """
+    project_root = project_root or globals().get("PROJECT_ROOT", "deepfake_project")
+    for item in results:
+        source = item.get("source", "")
+        video_id = item.get("video_id", "")
+
+        video_path = source
+        if not os.path.exists(video_path) and video_id:
+            candidate = os.path.join(project_root, "data", video_id, "source.mp4")
+            if os.path.exists(candidate):
+                video_path = candidate
+
+        meta = get_video_metadata(video_path)
+        item["video_metadata"] = meta
+
+    return results
+
+def analyze_misclassifications(
+    enriched_results: List[Dict[str, Any]], 
+    threshold: float = 0.5
+) -> List[Dict[str, Any]]:
+    """
+    Analyzes misclassified videos (False Negatives & False Positives) 
+    and prints a detailed breakdown with compression ratio and bitrate.
+    Returns the list of misclassified items sorted by highest compression ratio.
+    """
+    misclassified = []
+    for item in enriched_results:
+        gt = item.get("ground_truth", item.get("label"))
+        score = item.get("predicted_score", 0.0)
+        pred = 1 if score >= threshold else 0
+
+        if pred != gt:
+            item_copy = dict(item)
+            item_copy["error_type"] = "False Negative (Fake missed)" if gt == 1 else "False Positive (Real flagged)"
+            misclassified.append(item_copy)
+
+    # Sort misclassified items by highest compression ratio
+    misclassified.sort(
+        key=lambda x: x.get("video_metadata", {}).get("compression_ratio", 0.0), 
+        reverse=True
+    )
+
+    print("=" * 85)
+    print(f" MISCLASSIFICATION & COMPRESSION ANALYSIS (Threshold = {threshold})")
+    print(f" Total Errors: {len(misclassified)}")
+    print("=" * 85)
+    print(f"{'Source / Video ID':<32} {'Type':<18} {'GT':<5} {'Score':<7} {'Bitrate':<10} {'Comp. Ratio':<12}")
+    print("-" * 85)
+
+    for m in misclassified:
+        vid = m.get("video_id") or os.path.basename(m.get("source", "unknown"))
+        vid_short = vid[:30]
+        err_type = "FN (Fake->Real)" if m["ground_truth"] == 1 else "FP (Real->Fake)"
+        gt_str = "FAKE" if m["ground_truth"] == 1 else "REAL"
+        score_str = f"{m.get('predicted_score', 0.0):.4f}"
+        
+        vm = m.get("video_metadata", {})
+        kbps = f"{vm.get('bitrate_kbps', 0):.0f} kbps" if "bitrate_kbps" in vm else "N/A"
+        c_ratio = f"{vm.get('compression_ratio', 0.0):.1f}:1" if "compression_ratio" in vm else "N/A"
+
+        print(f"{vid_short:<32} {err_type:<18} {gt_str:<5} {score_str:<7} {kbps:<10} {c_ratio:<12}")
+
+    print("=" * 85 + "\n")
+    return misclassified
+
 
 def compute_eer_threshold(y_true: np.ndarray, y_scores: np.ndarray) -> Optional[float]:
     """Same FAR=FRR crossing logic as evaluation.py's compute_eer(), returns just the threshold."""
