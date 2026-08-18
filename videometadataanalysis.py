@@ -71,7 +71,7 @@ def get_video_metadata(video_path: str) -> Dict[str, Any]:
                 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                fps = float(cap.get(cv2.CAP_PROP_FPS))
+                fps = cap.get(cv2.CAP_PROP_FPS)
                 cap.release()
                 if fps > 0 and total_frames > 0:
                     duration_sec = total_frames / fps
