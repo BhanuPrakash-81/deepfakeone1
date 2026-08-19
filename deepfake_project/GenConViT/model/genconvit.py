@@ -12,13 +12,13 @@ class GenConViT(nn.Module):
         self.fp16 = fp16
         if self.net=='ed':
             try:
-                self.model_ed = GenConViTED(config)
+                self.model_ed = GenConViTED(config, pretrained=False)
                 self.checkpoint_ed = torch.load(f'weight/{ed}.pth', map_location=torch.device('cpu'))
 
                 if 'state_dict' in self.checkpoint_ed:
-                    self.model_ed.load_state_dict(self.checkpoint_ed['state_dict'])
+                    self.model_ed.load_state_dict(self.checkpoint_ed['state_dict'], strict=False)
                 else:
-                    self.model_ed.load_state_dict(self.checkpoint_ed)
+                    self.model_ed.load_state_dict(self.checkpoint_ed, strict=False)
 
                 self.model_ed.eval()
                 if self.fp16:
@@ -42,14 +42,14 @@ class GenConViT(nn.Module):
                 raise Exception(f"Error: weight/{vae}.pth file not found.")
         else:
             try:
-                self.model_ed = GenConViTED(config)
+                self.model_ed = GenConViTED(config, pretrained=False)
                 self.model_vae = GenConViTVAE(config)
                 self.checkpoint_ed = torch.load(f'weight/{ed}.pth', map_location=torch.device('cpu'))
                 self.checkpoint_vae = torch.load(f'weight/{vae}.pth', map_location=torch.device('cpu'))
                 if 'state_dict' in self.checkpoint_ed:
-                    self.model_ed.load_state_dict(self.checkpoint_ed['state_dict'])
+                    self.model_ed.load_state_dict(self.checkpoint_ed['state_dict'], strict=False)
                 else:
-                    self.model_ed.load_state_dict(self.checkpoint_ed)
+                    self.model_ed.load_state_dict(self.checkpoint_ed, strict=False)
                 if 'state_dict' in self.checkpoint_vae:
                     self.model_vae.load_state_dict(self.checkpoint_vae['state_dict'])
                 else:

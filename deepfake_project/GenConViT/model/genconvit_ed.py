@@ -61,7 +61,7 @@ class Decoder(nn.Module):
         return self.features(x)
 
 class GenConViTED(nn.Module):
-    def __init__(self, config, pretrained=True):
+    def __init__(self, config, pretrained=False):
         super(GenConViTED, self).__init__()
         self.encoder = Encoder()
         self.decoder = Decoder()

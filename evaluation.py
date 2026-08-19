@@ -47,6 +47,7 @@ else:
 if TYPE_CHECKING:
     from video_ingestion import process_video
     from fusion import fuse_predictions
+    from videometadataanalysis import get_video_metadata, print_compression_summary
 else:
     import traceback
     try:
@@ -66,8 +67,9 @@ else:
     try:
         from videometadataanalysis import get_video_metadata, print_compression_summary  # type: ignore
     except Exception:
-        get_video_metadata = None
-        print_compression_summary = None
+        get_video_metadata = globals().get("get_video_metadata", None)
+        print_compression_summary = globals().get("print_compression_summary", None)
+
 
 
 # %% CELL 1 — Sanity check required functions are in this session
@@ -167,7 +169,7 @@ def evaluate_dataset(
             y_scores.append(pred_score)
 
             vm_info = {}
-            if get_video_metadata:
+            if get_video_metadata is not None:
                 target_path = source
                 if not os.path.exists(target_path):
                     candidate = os.path.join(PROJECT_ROOT, "data", video_id, "source.mp4")
@@ -257,7 +259,7 @@ def evaluate_dataset(
     print(f" Metrics Report Saved To : {output_path}")
     print("=" * 60 + "\n")
 
-    if print_compression_summary and results:
+    if print_compression_summary is not None and results:
         print_compression_summary(results)
 
     return metrics

@@ -60,7 +60,7 @@ def check_transformers_version(min_version: str = MIN_TRANSFORMERS_VERSION):
 check_transformers_version()
 
 import torch
-from PIL import Image
+from PIL import Image, ImageFilter
 
 # Only GEND_DIR (so "src" resolves as a package) and PROJECT_ROOT (so
 # "GenD" resolves as a namespace package, for the fallback import below)
@@ -186,7 +186,7 @@ def predict_video_gend(video_id: str, model=None, fake_index: Optional[int] = No
 
     for i in range(0, len(face_paths), batch_size):
         batch_paths = face_paths[i:i + batch_size]
-        imgs = [Image.open(p).convert("RGB") for p in batch_paths]
+        imgs = [Image.open(p).convert("RGB").filter(ImageFilter.GaussianBlur(radius=0.5)) for p in batch_paths]
         tensors = torch.stack([model.feature_extractor.preprocess(img) for img in imgs]).to(DEVICE)
 
         with torch.no_grad():

@@ -7,3 +7,7 @@ deepfake_project/data/
 deepfake_project/evaluation_results.json
 deepfake_project/GenD/checkpoints/
 deepfake_project/LipFD/checkpoints/
+deepfake_project/GenConViT/weight/*.pth
+*.pth
+*.pt
+*.onnx

@@ -193,9 +193,10 @@ def extract_audio(video_path: Path, audio_path: Path) -> bool:
     return True
 
 # %% CELL 6 — Face detection + crop (Universal: supports Colab MediaPipe Solutions and Local OpenCV Fallback)
-def detect_and_crop_faces(frames_dir: Path, faces_dir: Path, margin: float = 0.25) -> Dict[str, Any]:
+def detect_and_crop_faces(frames_dir: Path, faces_dir: Path, margin: float = 0.05) -> Dict[str, Any]:
     """
-    Runs face detection on each extracted frame, crops the dominant face with a margin, and saves it.
+    Runs face detection on each extracted frame, crops the face tightly (margin=0.05),
+    suppresses background green-screen pixels, and saves the cropped face.
     Frames where no face is detected are skipped.
     """
     faces_dir.mkdir(parents=True, exist_ok=True)
@@ -209,91 +210,113 @@ def detect_and_crop_faces(frames_dir: Path, faces_dir: Path, margin: float = 0.2
         print(f"[skip] {n} face crops already exist in {faces_dir}")
         return {"total_frames": len(frame_paths), "faces_detected": n, "detection_rate": n / len(frame_paths)}
 
+    # SOTA OpenCV YuNet Deep Learning Face Detector
+    yunet_path = Path(PROJECT_ROOT) / "face_detection_yunet_2023mar.onnx"
+    if not yunet_path.exists():
+        url = "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+        try:
+            print("[downloading] SOTA YuNet face detector model...")
+            urllib.request.urlretrieve(url, str(yunet_path))
+        except Exception as e:
+            print(f"[warning] Could not download YuNet model: {e}")
+
+    has_yunet = hasattr(cv2, "FaceDetectorYN") and yunet_path.exists()
+
+    mp_detector = None
+    if HAS_MP_SOLUTIONS and mp_face_detection is not None:
+        try:
+            mp_detector = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.4)
+        except Exception:
+            mp_detector = None
+
+    yn_detector = None
+    yn_size = None
     detected = 0
 
-    if HAS_MP_SOLUTIONS and mp_face_detection is not None:
-        with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as detector:
-            for i, fpath in enumerate(frame_paths):
-                img_bgr = cv2.imread(str(fpath))
-                if img_bgr is None:
-                    continue
-                img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-                result = detector.process(img_rgb)
-
-                if not result.detections:
-                    continue
-
-                best = max(result.detections, key=lambda d: d.score[0])
-                bbox = best.location_data.relative_bounding_box
-                h, w = img_bgr.shape[:2]
-
-                xmin = max(0, int((bbox.xmin - margin * bbox.width) * w))
-                ymin = max(0, int((bbox.ymin - margin * bbox.height) * h))
-                xmax = min(w, int((bbox.xmin + bbox.width * (1 + margin)) * w))
-                ymax = min(h, int((bbox.ymin + bbox.height * (1 + margin)) * h))
-
-                if xmax <= xmin or ymax <= ymin:
-                    continue
-
-                crop = img_bgr[ymin:ymax, xmin:xmax]
-                crop = cv2.resize(crop, (224, 224))
-                cv2.imwrite(str(faces_dir / f"face_{i:04d}.jpg"), crop)
-                detected += 1
-    else:
-        # Local OpenCV Cascade Fallback
-        cascade_file = Path(PROJECT_ROOT) / "haarcascade_frontalface_default.xml"
-        if not cascade_file.exists():
-            url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
-            try:
-                urllib.request.urlretrieve(url, str(cascade_file))
-            except Exception as e:
-                print(f"[warning] Could not download face cascade file: {e}")
-
-        cascade = None
-        if hasattr(cv2, "CascadeClassifier") and cascade_file.exists():
-            try:
-                cascade = cv2.CascadeClassifier(str(cascade_file))
-            except Exception:
-                cascade = None
-
+    try:
         for i, fpath in enumerate(frame_paths):
             img_bgr = cv2.imread(str(fpath))
             if img_bgr is None:
                 continue
             h, w = img_bgr.shape[:2]
+            crop = None
 
-            faces = []
-            if cascade is not None and hasattr(cascade, "detectMultiScale") and not cascade.empty():
+            if has_yunet:
                 try:
-                    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-                    faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                    if yn_detector is None or yn_size != (w, h):
+                        yn_detector = cv2.FaceDetectorYN.create(str(yunet_path), "", (w, h), score_threshold=0.4)
+                        yn_size = (w, h)
+                    faces = yn_detector.detect(img_bgr)[1]
+                    if faces is not None and len(faces) > 0:
+                        best_face = max(faces, key=lambda f: f[2] * f[3])
+                        fx, fy, fw, fh = best_face[:4]
+                        xmin = max(0, int(fx - margin * fw))
+                        ymin = max(0, int(fy - margin * fh))
+                        xmax = min(w, int(fx + fw * (1 + margin)))
+                        ymax = min(h, int(fy + fh * (1 + margin)))
+                        if xmax > xmin and ymax > ymin:
+                            crop = img_bgr[ymin:ymax, xmin:xmax]
                 except Exception:
-                    faces = []
+                    crop = None
 
-            if len(faces) > 0:
-                # Pick largest detected face
-                best_face = max(faces, key=lambda rect: rect[2] * rect[3])
-                fx, fy, fw, fh = best_face
+            if crop is None and mp_detector is not None:
+                try:
+                    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+                    res = mp_detector.process(img_rgb)
+                    if res.detections:
+                        best = max(res.detections, key=lambda d: d.score[0])
+                        bbox = best.location_data.relative_bounding_box
+                        xmin = max(0, int((bbox.xmin - margin * bbox.width) * w))
+                        ymin = max(0, int((bbox.ymin - margin * bbox.height) * h))
+                        xmax = min(w, int((bbox.xmin + bbox.width * (1 + margin)) * w))
+                        ymax = min(h, int((bbox.ymin + bbox.height * (1 + margin)) * h))
+                        if xmax > xmin and ymax > ymin:
+                            crop = img_bgr[ymin:ymax, xmin:xmax]
+                except Exception:
+                    crop = None
 
-                xmin = max(0, int(fx - margin * fw))
-                ymin = max(0, int(fy - margin * fh))
-                xmax = min(w, int(fx + fw * (1 + margin)))
-                ymax = min(h, int(fy + fh * (1 + margin)))
-
-                if xmax <= xmin or ymax <= ymin:
-                    continue
-
-                crop = img_bgr[ymin:ymax, xmin:xmax]
+            if crop is not None:
+                detected += 1
             else:
-                # Fallback center crop if cascade unavailable or face not detected
+                # Center face region crop fallback (middle 60% of frame where heads are located)
                 min_dim = min(h, w)
                 cy, cx = h // 2, w // 2
-                half = min_dim // 2
+                half = int(min_dim * 0.35)
                 crop = img_bgr[max(0, cy - half):min(h, cy + half), max(0, cx - half):min(w, cx + half)]
 
+            # Suppress background green-screen and overexposed white studio background noise
+            hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+            lower_green = np.array([35, 50, 50])
+            upper_green = np.array([85, 255, 255])
+            green_mask = cv2.inRange(hsv, lower_green, upper_green)
+            crop[green_mask > 0] = (128, 128, 128)
+
+            # Adaptive High-Key / Overexposed Highlight Tone Mapping
+            gray_check = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+            mean_lum = float(np.mean(gray_check))
+            max_lum = float(np.max(gray_check))
+
+            if max_lum > 235.0 or mean_lum > 150.0:
+                # Smooth highlight compression to prevent overexposure boundary clipping
+                float_crop = crop.astype(np.float32) / 255.0
+                toned = float_crop / (float_crop + 0.20)
+                crop = np.clip(toned * (1.20 * 255.0), 0, 255).astype(np.uint8)
+
+            elif mean_lum < 75.0:
+                # Adaptive Low-Light / Nighttime Illumination Enhancement (CLAHE)
+                lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB)
+                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+                lab[:, :, 0] = clahe.apply(lab[:, :, 0])
+                crop = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+            
             crop = cv2.resize(crop, (224, 224))
             cv2.imwrite(str(faces_dir / f"face_{i:04d}.jpg"), crop)
-            detected += 1
+    finally:
+        if mp_detector is not None:
+            try:
+                mp_detector.close()
+            except Exception:
+                pass
 
     rate = detected / len(frame_paths) if frame_paths else 0.0
     print(f"[faces] {detected}/{len(frame_paths)} frames processed for face crops ({rate*100:.1f}%)")
@@ -312,11 +335,13 @@ def process_video(source: str, target_fps: float = 5.0, max_frames: int = 96) ->
     video_dir.mkdir(parents=True, exist_ok=True)
 
     meta_path = video_dir / "meta.json"
-    if meta_path.exists():
+    faces_dir = video_dir / "faces"
+    if meta_path.exists() and faces_dir.exists() and any(faces_dir.glob("face_*.jpg")):
         with open(meta_path) as f:
             meta = json.load(f)
-        print(f"[cached] {source} already processed (video_id={vid})")
-        return meta
+        if meta.get("faces_detected", 0) > 0:
+            print(f"[cached] {source} already processed (video_id={vid})")
+            return meta
 
     video_path = acquire_video(source, video_dir)
     frames_dir = video_dir / "frames"

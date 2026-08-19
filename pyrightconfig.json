@@ -6,12 +6,12 @@
     ".venv/Lib/site-packages",
     "deepfake_project/LipFD",
     "deepfake_project/GenD",
+    "deepfake_project/GenConViT",
     "deepfake_project"
   ],
   "exclude": [
     "**/node_modules",
     "**/__pycache__",
-    "deepfake_project/DeepfakeBench",
-    "deepfake_project/GenConViT"
+    "deepfake_project/DeepfakeBench"
   ]
 }
